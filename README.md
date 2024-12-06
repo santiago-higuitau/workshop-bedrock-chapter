@@ -148,7 +148,7 @@ aws s3 ls --profile your-profile
 Si vas a crear una capa, puedes hacerlo con el siguiente comando:
 
 ```bash
-aws lambda publish-layer-version --layer-name your-layer-name --zip-file layers/your-layer-file.zip --profile your-profile
+aws lambda publish-layer-version --layer-name your-layer-name --zip-file fileb://layers/your-layer-file.zip --profile your-profile
 ```
 
 #### 4.4 Validar la Creación de la Capa
