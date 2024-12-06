@@ -5,7 +5,7 @@ aws s3 mb s3://your-bucket-name --profile your-profile
 aws s3 ls --profile your-profile
 
 # Crear Layer para usar
-aws lambda publish-layer-version --layer-name your-layer-name --zip-file layers/your-layer-file.zip --profile your-profile
+aws lambda publish-layer-version --layer-name your-layer-name --zip-file fileb://layers/your-layer-file.zip --profile your-profile
 
 # Validar Layer Creada
 aws lambda list-layers --profile your-profile # Todas las creadas
