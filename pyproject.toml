@@ -1,0 +1,21 @@
+[tool.poetry]
+name = "Rocket - Real Time Gen AI Solutions"
+version = "0.1.0"
+description = "Workshop Bedrock - creating a conversational interface powered by GenAI"
+authors = ["Santiago Higuita <santiago.higuitau@pragma.com.co>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = ">=3.9,<3.9.7 || >3.9.7,<3.11"
+loguru = "^0.7.2"
+requests = "^2.32.3"
+tqdm = "^4.66.4"
+python-dotenv = "^1.0.1"
+boto3 = "^1.34.149"
+ipykernel = "^6.29.5"
+pandas = "2.1.1"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"

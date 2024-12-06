@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Streaming Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-image: url('https://img.freepik.com/fotos-premium/astronauta-traje-espacial-flotando-espacio-astronauta-lindo-gracioso-planeta-flores_854727-11081.jpg');
+            background-position: top right;
+            background-repeat: no-repeat;
+            background-color: #230f32;
+            color: #333;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+        }
+
+        h1 {
+            margin-bottom: 20px;
+            color: #f6f2f8;
+        }
+
+        #messageInput {
+            width: 500px;
+            height: 40px;
+            font-size: 16px;
+            padding: 10px;
+            border: 2px solid #a85bce;
+            border-radius: 5px;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+            transition: border-color 0.3s;
+        }
+
+        #messageInput:focus {
+            outline: none;
+            border-color: #2E7D32;
+        }
+
+        button {
+            background-color: #a85bce;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            padding: 10px 15px;
+            font-size: 16px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+            margin-top: 15px;
+        }
+
+        button:hover {
+            background-color: #a85bce;
+        }
+
+        #output {
+            margin-top: 30px;
+            width: 1200px;
+            padding: 10px;
+            background-color: #e9e7e7;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            height: 300px;
+            overflow-y: auto;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+            font-family: monospace;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            line-height: 1.5;
+        }
+        
+    </style>
+</head>
+<body>
+    <h1>Rocket Assistant</h1>
+    <input type="text" id="messageInput" placeholder="Escribe un mensaje a Rocket">
+    <button onclick="sendMessage()">Enviar Mensaje</button>
+    <pre id="output"></pre>
+
+    <script>
+        const socket = new WebSocket("your-web-socket-api");
+
+        socket.onopen = function(event) {
+            console.log("Conectado al WebSocket.");
+        };
+
+        socket.onmessage = function(event) {
+            console.log("Recibido:", event.data);
+            document.getElementById("output").textContent = event.data;
+        };
+
+        socket.onerror = function(event) {
+            console.error("Error observado en el WebSocket:", event);
+        };
+
+        function sendMessage() {
+            const message = document.getElementById("messageInput").value; 
+            if (socket.readyState === WebSocket.OPEN) {
+                const payload = {
+                    action: "sendMessage",
+                    data: {
+                        message: message // Enviar mensaje completo
+                    }
+                };
+                socket.send(JSON.stringify(payload));
+                document.getElementById("messageInput").value = ""; 
+            } else {
+                console.error("El WebSocket no está abierto. Estado listo: " + socket.readyState);
+            }
+        }
+
+        document.getElementById("messageInput").addEventListener("keypress", function(event) {
+            if (event.key === "Enter") {
+                sendMessage();
+                event.preventDefault(); 
+            }
+        });
+    </script>
+</body>
+</html>

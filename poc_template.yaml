@@ -1,0 +1,231 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: 'AWS::Serverless-2016-10-31'
+Description: your-template-description
+
+Parameters:
+  stage: 
+    Type: String
+    Default: your-project-stage
+    AllowedValues:
+      - dev
+      - qa
+      - prod
+  projectName:
+    Type: String
+    Description: your-project-description
+    Default: your-project-name
+  projectPrefix:
+    Type: String
+    Description: your-project-prefix-using-dashes-as-separator
+    Default: your-project-prefix
+  knowledgeBaseId:
+    Type: String
+    Description: your-knowledge-base-id
+    Default: XXXXX
+  layerSelected:
+    Type: String
+    Description: your-layer-arn
+    Default: arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:layer:<your-layer-name>:<version>
+
+Resources:
+  #**************************************************************************************************************************
+  #                                                     LAMBDA FUNCTIONS                                                    #
+  #**************************************************************************************************************************
+  # Lambda Functions: App Connect
+  connectAPIFn:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub '${projectPrefix}-lambda-connect-${stage}'
+      Handler: app_connect.lambda_handler
+      Runtime: python3.9
+      CodeUri: src/app_connect/
+      Description: An AWS lambda function to establish connection.
+      MemorySize: 512
+      Timeout: 60
+      Environment:
+        Variables:
+          REGION_NAME: !Ref AWS::Region
+          ACCOUNT_ID: !Ref AWS::AccountId
+          STAGE: !Ref stage
+      Architectures:
+        - x86_64
+      Tags:
+        'your-label-name:project-name': !Ref projectName
+        'your-label-name:project-stage': !Ref stage
+
+  # Lambda Functions: App Disconnect
+  disconnectAPIFn:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub '${projectPrefix}-lambda-disconnect-${stage}'
+      Handler: app_disconnect.lambda_handler
+      Runtime: python3.9
+      CodeUri: src/app_disconnect/
+      Description: An AWS lambda function to close connection.
+      MemorySize: 512
+      Timeout: 60
+      Environment:
+        Variables:
+          REGION_NAME: !Ref AWS::Region
+          ACCOUNT_ID: !Ref AWS::AccountId
+          STAGE: !Ref stage
+      Architectures:
+        - x86_64
+      Tags:
+        'your-label-name:project-name': !Ref projectName
+        'your-label-name:project-stage': !Ref stage
+
+  # Lambda Functions: Inference Process
+  inferenceAPIFn:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub '${projectPrefix}-lambda-inference-model-${stage}'
+      Handler: app_inference.lambda_handler
+      Runtime: python3.9
+      CodeUri: src/app_inference/
+      Layers:
+        - !Ref layerSelected
+      Description: An AWS lambda function to retrieve documents from knowledge base and make requests to the bedrock model api.
+      MemorySize: 1024
+      Timeout: 600
+      Environment:
+        Variables:
+          REGION_NAME: !Ref AWS::Region
+          ACCOUNT_ID: !Ref AWS::AccountId
+          STAGE: !Ref stage
+          KNOWLEDGE_BASE_ID: !Ref knowledgeBaseId
+          API_ENDPOINT: !Sub "https://${webSocketApi}.execute-api.${AWS::Region}.amazonaws.com/${stage}"
+      Architectures:
+        - x86_64
+      Policies:
+        - Version: "2012-10-17"
+          Statement:
+            - Effect: Allow
+              Action:
+                - bedrock:*
+                - execute-api:ManageConnections
+              Resource: "*"
+      Tags:
+        'your-label-name:project-name': !Ref projectName
+        'your-label-name:project-stage': !Ref stage
+
+  #**************************************************************************************************************************
+  #                                                       APIGATEWAY WS                                                     #
+  #**************************************************************************************************************************
+  # ApiGateway WS
+  webSocketApi:
+    Type: AWS::ApiGatewayV2::Api
+    Properties:
+      Name: !Sub '${projectPrefix}-apigateway-ws-${stage}'
+      Description: An WebSocket API to expose generated text
+      ProtocolType: WEBSOCKET
+      RouteSelectionExpression: "$request.body.action"
+
+  # Permission Over Connect Function
+  connectFunctionPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref connectAPIFn
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${webSocketApi}/*
+  # Integration Over Connect Function
+  connectFunctionIntegration:
+    Type: AWS::ApiGatewayV2::Integration
+    Properties:
+      ApiId: !Ref webSocketApi
+      Description: Route Connection Integration
+      IntegrationType: AWS_PROXY
+      IntegrationUri: !Sub 
+        - 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${lambdaConnectionArn}/invocations'
+        - lambdaConnectionArn: !GetAtt connectAPIFn.Arn
+  # Define Route
+  connectionFunctionRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref webSocketApi
+      RouteKey: $connect
+      AuthorizationType: NONE
+      Target: !Join ["/", ["integrations", !Ref connectFunctionIntegration]]
+
+  # Permission Over Disconnect Function
+  disconnectFunctionPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref disconnectAPIFn
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${webSocketApi}/*
+  # Integration Over Disconnect Function
+  disconnectFunctionIntegration:
+    Type: AWS::ApiGatewayV2::Integration
+    Properties:
+      ApiId: !Ref webSocketApi
+      Description: Route Close Connection Integration
+      IntegrationType: AWS_PROXY
+      IntegrationUri: !Sub 
+        - 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${lambdaDisconnectionArn}/invocations'
+        - lambdaDisconnectionArn: !GetAtt disconnectAPIFn.Arn
+  # Define Route
+  disconnectionFunctionRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref webSocketApi
+      RouteKey: $disconnect
+      AuthorizationType: NONE
+      Target: !Join ["/", ["integrations", !Ref disconnectFunctionIntegration]]
+
+# Permission Over Inference Function
+  inferenceFunctionPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: lambda:InvokeFunction
+      FunctionName: !Ref inferenceAPIFn
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${webSocketApi}/*
+  # Integration Over Inference Function
+  inferenceFunctionIntegration:
+    Type: AWS::ApiGatewayV2::Integration
+    Properties:
+      ApiId: !Ref webSocketApi
+      Description: Route Send Message
+      IntegrationType: AWS_PROXY
+      IntegrationUri: !Sub 
+        - 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${lambdaInferenceArn}/invocations'
+        - lambdaInferenceArn: !GetAtt inferenceAPIFn.Arn
+  # Define Route
+  inferenceFunctionRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref webSocketApi
+      RouteKey: sendMessage
+      AuthorizationType: NONE
+      Target: !Join ["/", ["integrations", !Ref inferenceFunctionIntegration]]
+
+  # Web Socket ApiGateway Service: STAGE    
+  wsStage:
+    Type: AWS::ApiGatewayV2::Stage
+    Properties:
+      StageName: !Ref stage
+      Description: Web socket API Stage
+      ApiId: !Ref webSocketApi
+      DeploymentId: !Ref wsDeployment
+
+  # Web Socket ApiGateway Service: DEPLOYMENT
+  wsDeployment:
+    Type: AWS::ApiGatewayV2:::Deployment
+    DependsOn:
+      - connectionFunctionRoute
+      - disconnectionFunctionRoute
+      - inferenceFunctionRoute
+    Properties:
+      ApiId: !Ref webSocketApi
+
+# Outputs AWS SAM Template
+Outputs:
+  # connections URL
+  connectionsURL:
+    Value: !Sub "https://${webSocketApi}.execute-api.${AWS::Region}.amazonaws.com/${stage}"
+  # WebSocket URL
+  webSocketURL:
+    Value: !Sub "wss://${webSocketApi}.execute-api.${AWS::Region}.amazonaws.com/${stage}/"
