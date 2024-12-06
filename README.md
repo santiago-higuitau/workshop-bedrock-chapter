@@ -187,6 +187,12 @@ Para asegurarte de que los recursos fueron desplegados correctamente, puedes ir 
 
 Dentro de la carpeta test_app, encontrarás un archivo llamado test_streaming_app.html. Ábrelo y ajusta el valor de "your-web-socket-api" al endpoint de tu WebSocket generado. Este endpoint lo encontrarás en los outputs de tu stack en CloudFormation.
 
+Este es el endpoint que debes buscar en los Outputs de tu Stack: 
+
+```bash
+wss://${webSocketApi}.execute-api.${AWS::Region}.amazonaws.com/${stage}/
+```
+
 ![alt text](imgs/image_config_ws.png)
 
 #### 6.2 Probar la Aplicación - Let's go rock out🎸🔥!
